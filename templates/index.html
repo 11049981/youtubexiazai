@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <h1 class="text-3xl font-bold text-center mb-2">YouTube Video Downloader</h1>
+        <p class="text-center text-gray-600 mb-8">Enter a YouTube URL to download the video</p>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex gap-4">
+                <input type="text" id="url-input" 
+                    class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://www.youtube.com/watch?v=...">
+                <button onclick="startDownload()" 
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                    Download
+                </button>
+            </div>
+            <div id="progress-bar" class="hidden mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progress-text" class="text-sm text-gray-600 mt-2"></p>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <h2 class="text-2xl font-bold mb-4">Downloaded Videos</h2>
+            {% for video in videos %}
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <div class="flex gap-4">
+                    <div class="flex-1">
+                        <h3 class="text-xl font-semibold mb-2">{{ video.title }}</h3>
+                        <p class="text-gray-600 mb-2">Author: {{ video.author }}</p>
+                        <p class="text-gray-600 mb-2">Duration: {{ video.duration }} seconds</p>
+                        <p class="text-gray-600 mb-2">File size: {{ video.file_size // 1024 // 1024 }} MB</p>
+                        <p class="text-gray-600">Path: {{ video.file_path }}</p>
+                    </div>
+                    <div class="w-64">
+                        <video controls class="w-full rounded">
+                            <source src="/downloads/{{ video.id }}.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        async function startDownload() {
+            const urlInput = document.getElementById('url-input');
+            const progressBar = document.getElementById('progress-bar');
+            const progressFill = progressBar.querySelector('div');
+            const progressText = document.getElementById('progress-text');
+
+            // 显示进度条
+            progressBar.classList.remove('hidden');
+            progressText.textContent = '我正在默默地耕耘，企图能在荒漠中开出一朵花来......';
+
+            try {
+                // 开始下载
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url: urlInput.value})
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+                
+                const data = await response.json();
+                const videoId = data.video_id;
+
+                // 轮询进度
+                const interval = setInterval(async () => {
+                    try {
+                        const progressResponse = await fetch(`/progress/${videoId}`);
+                        if (!progressResponse.ok) {
+                            throw new Error('Failed to fetch progress');
+                        }
+                        
+                        const progressData = await progressResponse.json();
+                        
+                        // 确保进度是数字
+                        const progress = parseInt(progressData.progress) || 0;
+                        progressFill.style.width = `${progress}%`;
+                        
+                        // 显示更详细的下载信息
+                        let statusText = 'Downloading...';
+                        if (progressData.downloaded_bytes && progressData.total_bytes) {
+                            const downloaded = (progressData.downloaded_bytes / 1024 / 1024).toFixed(1);
+                            const total = (progressData.total_bytes / 1024 / 1024).toFixed(1);
+                            const speed = progressData.speed ? (progressData.speed / 1024 / 1024).toFixed(1) : 0;
+                            statusText = `${progress}% (${downloaded}MB / ${total}MB) - ${speed}MB/s`;
+                        }
+                        
+                        progressText.textContent = statusText;
+
+                        if (progressData.status === 'completed') {
+                            clearInterval(interval);
+                            progressText.textContent = 'Download completed!';
+                            setTimeout(() => window.location.reload(), 1000);
+                        } else if (progressData.status === 'failed') {
+                            clearInterval(interval);
+                            progressText.textContent = `Download failed: ${progressData.error || 'Unknown error'}`;
+                        }
+                    } catch (error) {
+                        console.error('Progress update error:', error);
+                        progressText.textContent = `Error updating progress: ${error.message}`;
+                    }
+                }, 1000);
+
+            } catch (error) {
+                console.error('Download error:', error);
+                progressText.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html> 
