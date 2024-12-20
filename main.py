@@ -9,6 +9,7 @@ import json
 import os
 import logging
 import re
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -28,6 +29,14 @@ downloads = {}
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_video_info(url):
     with yt_dlp.YoutubeDL() as ydl:
