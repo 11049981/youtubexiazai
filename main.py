@@ -10,6 +10,7 @@ import os
 import logging
 import re
 from fastapi.middleware.cors import CORSMiddleware
+import tempfile
 
 app = FastAPI()
 
@@ -20,7 +21,7 @@ app.mount("/downloads", StaticFiles(directory="downloads"), name="downloads")
 templates = Jinja2Templates(directory="templates")
 
 # 创建下载目录
-DOWNLOAD_DIR = Path("downloads")
+DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "downloads"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 # 存储下载任务状态
